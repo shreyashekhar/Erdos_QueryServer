@@ -1,2 +1,0 @@
-cargo:rustc-env=TYPENUM_BUILD_CONSTS=/Users/shreyashekhar/RiseLab/erdos_queryserver/warp-example/target/debug/build/typenum-c250349be16c1d70/out/consts.rs
-cargo:rustc-env=TYPENUM_BUILD_OP=/Users/shreyashekhar/RiseLab/erdos_queryserver/warp-example/target/debug/build/typenum-c250349be16c1d70/out/op.rs
