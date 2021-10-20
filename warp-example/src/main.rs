@@ -18,7 +18,11 @@ async fn main() {
     let graph = warp::path!("graph")
 	.map(|| {fs::read_to_string("test.txt").expect("null")});
    
-    let all = hello.or(stream).or(graph);
+    let cors = warp::cors()
+    	.allow_origin("http://localhost:3000")
+    	.allow_methods(vec!["GET", "POST", "DELETE"]);
+
+    let all = hello.or(stream).or(graph).with(cors);
 
     warp::serve(all)
         .run(([0, 0, 0, 0], 8000))
