@@ -155,6 +155,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56899898ce76aaf4a0f24d914c97ea6ed976d42fec6ad33fcbb0a1103e07b2b0"
 
 [[package]]
+name = "either"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+
+[[package]]
 name = "env_logger"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -211,13 +217,22 @@ version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a12aa0eb539080d55c3f2d45a67c3b58b6b0773c1a3ca2dfec66d58c97fd66ca"
 dependencies = [
- "futures-channel",
- "futures-core",
+ "futures-channel 0.3.17",
+ "futures-core 0.3.17",
  "futures-executor",
  "futures-io",
- "futures-sink",
+ "futures-sink 0.3.17",
  "futures-task",
  "futures-util",
+]
+
+[[package]]
+name = "futures-channel"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb37ec6418c577b25f5b129c0f4456ad7ce8714ec43c59712aa7e4cd2cb6b85"
+dependencies = [
+ "futures-core 0.2.1",
 ]
 
 [[package]]
@@ -226,8 +241,17 @@ version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5da6ba8c3bb3c165d3c7319fc1cc8304facf1fb8db99c5de877183c08a273888"
 dependencies = [
- "futures-core",
- "futures-sink",
+ "futures-core 0.3.17",
+ "futures-sink 0.3.17",
+]
+
+[[package]]
+name = "futures-core"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7455c91eb2eae38f33b013f77ebe766c75761af333efd9d550e154045c63e225"
+dependencies = [
+ "either",
 ]
 
 [[package]]
@@ -242,7 +266,7 @@ version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45025be030969d763025784f7f355043dc6bc74093e4ecc5000ca4dc50d8745c"
 dependencies = [
- "futures-core",
+ "futures-core 0.3.17",
  "futures-task",
  "futures-util",
 ]
@@ -264,6 +288,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "futures-sink"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8a93a7c480876b8e02cdd70022e7eb9c8423575ea6a25a0b749b18834c16412"
+dependencies = [
+ "either",
+ "futures-channel 0.2.1",
+ "futures-core 0.2.1",
 ]
 
 [[package]]
@@ -291,11 +326,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36568465210a3a6ee45e1f165136d68671471a501e632e9a98d96872222b5481"
 dependencies = [
  "autocfg",
- "futures-channel",
- "futures-core",
+ "futures-channel 0.3.17",
+ "futures-core 0.3.17",
  "futures-io",
  "futures-macro",
- "futures-sink",
+ "futures-sink 0.3.17",
  "futures-task",
  "memchr",
  "pin-project-lite 0.2.7",
@@ -345,8 +380,8 @@ checksum = "5e4728fd124914ad25e99e3d15a9361a879f6620f63cb56bbb08f95abb97a535"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
- "futures-core",
- "futures-sink",
+ "futures-core 0.3.17",
+ "futures-sink 0.3.17",
  "futures-util",
  "http",
  "indexmap",
@@ -456,8 +491,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a6f157065790a3ed2f88679250419b5cdd96e714a0d65f7797fd337186e96bb"
 dependencies = [
  "bytes 0.5.6",
- "futures-channel",
- "futures-core",
+ "futures-channel 0.3.17",
+ "futures-core 0.3.17",
  "futures-util",
  "h2",
  "http",
@@ -1251,7 +1286,7 @@ checksum = "6703a273949a90131b290be1fe7b039d0fc884aa1935860dfcbe056f28cd8092"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
- "futures-core",
+ "futures-core 0.3.17",
  "iovec",
  "lazy_static",
  "libc",
@@ -1316,8 +1351,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be8242891f2b6cbef26a2d7e8605133c2c554cd35b3e4948ea892d6d68436499"
 dependencies = [
  "bytes 0.5.6",
- "futures-core",
- "futures-sink",
+ "futures-core 0.3.17",
+ "futures-sink 0.3.17",
  "log",
  "pin-project-lite 0.1.12",
  "tokio",
@@ -1513,6 +1548,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "futures-sink 0.2.1",
  "futures-util",
  "mobc",
  "mobc-postgres",
