@@ -1,43 +1,37 @@
 #![deny(warnings)]
 
 use futures_util::{FutureExt, StreamExt};
-// use futures_sink::{Sink};
 use warp::Filter;
-// use std::sync::mpsc;
 use tokio::sync::mpsc;
 use warp::ws::{Message, WebSocket};
 
+pub fn handle_ws_request(msg: Message, send_in: mpsc::UnboundedSender<Result<Message, warp::Error>>) -> Message {
+  Message::text("test")
+}
+
 pub async fn client_connection(ws: WebSocket) {
     let (tx, mut rx) = ws.split();
-    // let (read_in, read_out) = mpsc::unbounded_channel();
     let (send_in, send_out) = mpsc::unbounded_channel();
-
+    
     tokio::task::spawn(send_out.forward(tx).map(|result| {
         if let Err(e) = result {
             eprintln!("error sending websocket msg: {}", e);
         }
     }));
 
-    // rx.forward(read_in);
-
-    let mut i = 0;
     while let Some(result) = rx.next().await {
         let msg = match result {
-            Ok(_) => {
-		i += 1;
-		Message::text(i.to_string())
+            Ok(msg) => {
+		msg	
 	    },
             Err(_e) => {
                 eprintln!("error");
                 break;
             }
         };
+	let msg = handle_ws_request(msg, send_in);
         send_in.send(Ok(msg)).map_err(|err| println!("{:?}", err)).ok();
     }
-
-    // tokio::task::spawn(read_out.for_each(|item| {
-    //     send_in.send(item).map_err(|err| println!("{:?}", err)).ok()
-    // }));
 
     println!("conn");
 }
