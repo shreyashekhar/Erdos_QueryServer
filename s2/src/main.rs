@@ -5,7 +5,7 @@ use futures_util::{FutureExt, StreamExt};
 use warp::Filter;
 // use std::sync::mpsc;
 use tokio::sync::mpsc;
-use warp::ws::{WebSocket};
+use warp::ws::{Message, WebSocket};
 
 pub async fn client_connection(ws: WebSocket) {
     let (tx, mut rx) = ws.split();
@@ -20,9 +20,13 @@ pub async fn client_connection(ws: WebSocket) {
 
     // rx.forward(read_in);
 
+    let mut i = 0;
     while let Some(result) = rx.next().await {
         let msg = match result {
-            Ok(msg) => msg,
+            Ok(_) => {
+		i += 1;
+		Message::text(i.to_string())
+	    },
             Err(_e) => {
                 eprintln!("error");
                 break;
