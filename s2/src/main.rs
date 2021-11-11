@@ -5,12 +5,13 @@ use warp::Filter;
 use tokio::sync::mpsc;
 use warp::ws::{Message, WebSocket};
 
-pub fn handle_ws_request(msg: Message, send_in: mpsc::UnboundedSender<Result<Message, warp::Error>>) -> Message {
+pub fn handle_ws_request(_msg: Message, _send_in: &mpsc::UnboundedSender<Result<Message, warp::Error>>) -> Message  {
   Message::text("test")
 }
 
 pub async fn client_connection(ws: WebSocket) {
     let (tx, mut rx) = ws.split();
+
     let (send_in, send_out) = mpsc::unbounded_channel();
     
     tokio::task::spawn(send_out.forward(tx).map(|result| {
@@ -29,7 +30,8 @@ pub async fn client_connection(ws: WebSocket) {
                 break;
             }
         };
-	let msg = handle_ws_request(msg, send_in);
+
+	    let msg = handle_ws_request(msg, &send_in);
         send_in.send(Ok(msg)).map_err(|err| println!("{:?}", err)).ok();
     }
 
