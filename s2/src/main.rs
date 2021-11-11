@@ -4,9 +4,16 @@ use futures_util::{FutureExt, StreamExt};
 use warp::Filter;
 use tokio::sync::mpsc;
 use warp::ws::{Message, WebSocket};
+use serde::{Serialize, Deserialize};
 
-pub fn handle_ws_request(_msg: Message, _send_in: &mpsc::UnboundedSender<Result<Message, warp::Error>>) -> Message  {
-  Message::text("test")
+#[derive(Serialize, Deserialize, Debug)]
+struct Request {
+    type_: String
+}
+
+pub fn handle_ws_request(msg: Message) -> Message  {
+    let req: Request = serde_json::from_str(msg.to_str().unwrap()).unwrap();
+    Message::text(req.type_)
 }
 
 pub async fn client_connection(ws: WebSocket) {
@@ -31,7 +38,7 @@ pub async fn client_connection(ws: WebSocket) {
             }
         };
 
-	    let msg = handle_ws_request(msg, &send_in);
+	    let msg = handle_ws_request(msg);
         send_in.send(Ok(msg)).map_err(|err| println!("{:?}", err)).ok();
     }
 
