@@ -9,6 +9,17 @@ pub struct MyRequest {
     pub request_type: String
 }
 
+pub trait Deserializable {
+    fn valid();
+}
+
+impl Deserializable for MyRequest {
+    fn valid() {
+
+    }
+}
+
+
 pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
     let (tx, mut rx) = ws.split();
 
