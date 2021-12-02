@@ -1,24 +1,12 @@
-
 use futures_util::{FutureExt, StreamExt};
 use tokio::sync::mpsc;
-use warp::ws::{Message, WebSocket};
+use warp::{ws::{Message, WebSocket}};
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
     pub request_type: String
 }
-
-pub trait Deserializable {
-    fn valid();
-}
-
-impl Deserializable for MyRequest {
-    fn valid() {
-
-    }
-}
-
 
 pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
     let (tx, mut rx) = ws.split();
@@ -49,14 +37,30 @@ pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
     println!("conn");
 }
 
-pub fn valid(msg: &Message) -> bool {
-    let unparsed: Result<MyRequest, serde_json::Error> = serde_json::from_str(msg.to_str().unwrap());
-    let response: bool = match unparsed {
+// pub async fn forward(ws: WebSocket, from: &mpsc::UnboundedReceiver<Result<Message, warp::Error>>) {
+//     let (tx, _) = ws.split();
+    
+//     tokio::task::spawn(from.forward(tx).map(|result| {
+//         if let Err(e) = result {
+//             eprintln!("error sending websocket msg: {}", e);
+//         }
+//     }));
+
+//     loop {
+
+//     };
+
+//     // println!("conn");
+// }
+
+pub fn parse_request<T: for<'a>Deserialize<'a> >(msg: &Message) -> Result<T, bool> {
+    let unparsed: Result<T, serde_json::Error> = serde_json::from_str(msg.to_str().unwrap());
+    let response: Result<T, bool> = match unparsed {
         Ok(_) => {
-            true
+            Ok(unparsed.unwrap())
         },
         Err(_) => {
-            false
+            Err(true)
         }
     };
     response
