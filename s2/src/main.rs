@@ -35,7 +35,8 @@ pub struct StreamRequest { // TODO @shreya: make this actually match what peter 
 
 #[derive(Serialize, Debug)]
 pub struct StreamResponse { // TODO @shreya: make this actually match what peter wants
-    pub watermark: i32
+    pub watermark: i32,
+    pub messages_sent: i32
 }
 
 pub fn handle_stream_request(msg: Message) -> Message  { // TODO @shreya: make this actually match what peter wants
@@ -45,6 +46,7 @@ pub fn handle_stream_request(msg: Message) -> Message  { // TODO @shreya: make t
         Ok(_) => {
             let pre = StreamResponse {
                 watermark: 123,
+                messages_sent: 100
             };
 
             response = serde_json::to_string(&pre).unwrap();
@@ -59,12 +61,25 @@ pub fn handle_stream_request(msg: Message) -> Message  { // TODO @shreya: make t
 
 // TODO @shreya: Make OperatorRequest and OperatorResponse structs
 
+#[derive(Deserialize, Debug)]
+pub struct OperatorRequest { // TODO @shreya: make this actually match what peter wants
+    pub operator_id: String
+}
+
+#[derive(Serialize, Debug)]
+pub struct OperatorResponse { // TODO @shreya: make this actually match what peter wants
+    pub statistics: i32
+}
+
 pub fn handle_operator_request(msg: Message) -> Message  {
     let response: String;
 
-    match parse_request::<MyRequest>(&msg) { // TODO @shreya: Change to OperatorRequest
-        Ok(req) => {
-            response = req.request_type; // TODO @shreya: make this handle differently for operator requests
+    match parse_request::<OperatorRequest>(&msg) { // TODO @shreya: Change to OperatorRequest
+        Ok(_) => { // TODO @shreya: make this handle differently for operator requests
+            let pre = OperatorResponse {
+                statistics: 32
+            };
+            response = serde_json::to_string(&pre).unwrap();
         },
         Err(_e) => {
             response = "Request is not formatted correctly".to_string();
