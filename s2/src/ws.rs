@@ -10,7 +10,6 @@ pub struct MyRequest {
 
 pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
     let (tx, mut rx) = ws.split();
-
     let (send_in, send_out) = mpsc::unbounded_channel();
     
     tokio::task::spawn(send_out.forward(tx).map(|result| {
