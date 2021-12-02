@@ -29,17 +29,17 @@ pub fn handle_graph_request(_msg: Message) -> Message  {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct StreamRequest { // TODO @shreya: make this actually match what peter wants
+pub struct StreamRequest { 
     pub stream_id: String
 }
 
 #[derive(Serialize, Debug)]
-pub struct StreamResponse { // TODO @shreya: make this actually match what peter wants
+pub struct StreamResponse { 
     pub watermark: i32,
     pub messages_sent: i32
 }
 
-pub fn handle_stream_request(msg: Message) -> Message  { // TODO @shreya: make this actually match what peter wants
+pub fn handle_stream_request(msg: Message) -> Message  { 
     let response: String;
 
     match parse_request::<StreamRequest>(&msg) {
@@ -59,23 +59,23 @@ pub fn handle_stream_request(msg: Message) -> Message  { // TODO @shreya: make t
     Message::text(response)
 }
 
-// TODO @shreya: Make OperatorRequest and OperatorResponse structs
+
 
 #[derive(Deserialize, Debug)]
-pub struct OperatorRequest { // TODO @shreya: make this actually match what peter wants
+pub struct OperatorRequest { 
     pub operator_id: String
 }
 
 #[derive(Serialize, Debug)]
-pub struct OperatorResponse { // TODO @shreya: make this actually match what peter wants
+pub struct OperatorResponse { 
     pub statistics: i32
 }
 
 pub fn handle_operator_request(msg: Message) -> Message  {
     let response: String;
 
-    match parse_request::<OperatorRequest>(&msg) { // TODO @shreya: Change to OperatorRequest
-        Ok(_) => { // TODO @shreya: make this handle differently for operator requests
+    match parse_request::<OperatorRequest>(&msg) { 
+        Ok(_) => { 
             let pre = OperatorResponse {
                 statistics: 32
             };
