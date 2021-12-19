@@ -25,6 +25,9 @@ Useful libraries:
   - parse a JSON string to a struct with handling of incorrect 
     formatting
 
+- webserver visualization via DOT graph both inside and outside 
+  ERDOS container
+
 # What we attempted (but didn't complete)
 
 - asbtracting a bit more of the socket mapping logic into a function
@@ -34,7 +37,7 @@ Useful libraries:
 
 # What's next
 
-- fix the above issues
+- fix the above issues (broadcast channel)
 - flesh out the endpoints (need to define specific requirements)
 - integrate with ERDOS
 - built more frontend
