@@ -386,8 +386,8 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio",
- "tokio-util",
+ "tokio 0.2.25",
+ "tokio-util 0.3.1",
  "tracing",
  "tracing-futures",
 ]
@@ -502,7 +502,7 @@ dependencies = [
  "itoa",
  "pin-project 1.0.8",
  "socket2",
- "tokio",
+ "tokio 0.2.25",
  "tower-service",
  "tracing",
  "want",
@@ -688,7 +688,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "log",
- "tokio",
+ "tokio 0.2.25",
 ]
 
 [[package]]
@@ -1299,6 +1299,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbbf1c778ec206785635ce8ad57fe52b3009ae9e0c9f574a728f3049d3e55838"
+dependencies = [
+ "pin-project-lite 0.2.7",
+]
+
+[[package]]
 name = "tokio-macros"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1327,8 +1336,20 @@ dependencies = [
  "pin-project-lite 0.1.12",
  "postgres-protocol",
  "postgres-types",
- "tokio",
- "tokio-util",
+ "tokio 0.2.25",
+ "tokio-util 0.3.1",
+]
+
+[[package]]
+name = "tokio-stream"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50145484efff8818b5ccd256697f36863f587da82cf8b409c53adf1e840798e3"
+dependencies = [
+ "futures-core 0.3.17",
+ "pin-project-lite 0.2.7",
+ "tokio 1.15.0",
+ "tokio-util 0.6.9",
 ]
 
 [[package]]
@@ -1340,7 +1361,7 @@ dependencies = [
  "futures-util",
  "log",
  "pin-project 0.4.28",
- "tokio",
+ "tokio 0.2.25",
  "tungstenite",
 ]
 
@@ -1355,7 +1376,21 @@ dependencies = [
  "futures-sink 0.3.17",
  "log",
  "pin-project-lite 0.1.12",
- "tokio",
+ "tokio 0.2.25",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e99e1983e5d376cd8eb4b66604d2e99e79f5bd988c3055891dcd8c9e2604cc0"
+dependencies = [
+ "bytes 1.1.0",
+ "futures-core 0.3.17",
+ "futures-sink 0.3.17",
+ "log",
+ "pin-project-lite 0.2.7",
+ "tokio 1.15.0",
 ]
 
 [[package]]
@@ -1534,7 +1569,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "tokio",
+ "tokio 0.2.25",
  "tokio-tungstenite",
  "tower-service",
  "tracing",
@@ -1557,7 +1592,8 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "thiserror",
- "tokio",
+ "tokio 0.2.25",
+ "tokio-stream",
  "uuid",
  "warp",
 ]

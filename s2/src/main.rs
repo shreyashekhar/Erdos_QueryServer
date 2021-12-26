@@ -4,9 +4,12 @@ use serde::{Deserialize, Serialize};
 use warp::{Filter};
 use warp::ws::{Message};
 use std::fs;
+use tokio::sync::{broadcast::{Sender}};
 
 mod ws;
-use ws::{client_connection, MyRequest, parse_request};
+use ws::{client_connection, MyRequest, parse_request, forward_broadcast};
+
+use tokio::sync::broadcast;
 
 pub fn test_ws_request(msg: Message) -> Message  {
     let response: String;
@@ -59,8 +62,6 @@ pub fn handle_stream_request(msg: Message) -> Message  {
     Message::text(response)
 }
 
-
-
 #[derive(Deserialize, Debug)]
 pub struct OperatorRequest { 
     pub operator_id: String
@@ -89,9 +90,11 @@ pub fn handle_operator_request(msg: Message) -> Message  {
     Message::text(response)
 }
 
-// async fn test_background_channel(test_in: UnboundedSender<Result<Message, warp::Error>>) {
-    
-// }
+async fn test_background_channel(tx: &Sender<Result<Message, warp::Error>>) {
+    loop {
+        tx.send(Ok(Message::text("Hello, world!")));
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -103,34 +106,37 @@ async fn main() {
             ws.on_upgrade(move |socket| client_connection(socket, test_ws_request))
         });
 
-    let graph = warp::path("graph").and(warp::ws())
-    .map(|ws: warp::ws::Ws| {
-        ws.on_upgrade(move |socket| client_connection(socket, handle_graph_request))
-    });
+    let graph = warp::path("graph")
+        .and(warp::ws())
+        .map(|ws: warp::ws::Ws| {
+            ws.on_upgrade(move |socket| client_connection(socket, handle_graph_request))
+        });
 
-    let stream = warp::path("stream").and(warp::ws())
-    .map(|ws: warp::ws::Ws| {
-        ws.on_upgrade(move |socket| client_connection(socket, handle_stream_request))
-    });
+    let stream = warp::path("stream")
+        .and(warp::ws())
+        .map(|ws: warp::ws::Ws| {
+            ws.on_upgrade(move |socket| client_connection(socket, handle_stream_request))
+        });
 
-    let operator = warp::path("operator").and(warp::ws())
-    .map(|ws: warp::ws::Ws| {
-        ws.on_upgrade(move |socket| client_connection(socket, handle_operator_request))
-    });
+    let operator = warp::path("operator")
+        .and(warp::ws())
+        .map(|ws: warp::ws::Ws| {
+            ws.on_upgrade(move |socket| client_connection(socket, handle_operator_request))
+        });
 
     let routes = echo.or(graph).or(stream).or(operator);
 
-    // let (test_in, test_out) = mpsc::unbounded_channel::<Result<Message, warp::Error>>();
-    // tokio::spawn(test_background_channel(test_in));
+    let (tx, _) = broadcast::channel(16);
 
-    // let top: &mpsc::UnboundedReceiver<Result<Message, warp::Error>> = &test_out;
+    tokio::spawn(test_background_channel(&tx));
 
-    // routes.or(warp::path("forward")
-    //     // The `ws()` filter will prepare the Websocket handshake.
-    //     .and(warp::ws())
-    //     .map( |ws: warp::ws::Ws| {
-    //         ws.on_upgrade(move |socket| forward(socket, top))
-    //     }));
+    routes.or(warp::path("forward")
+        // The `ws()` filter will prepare the Websocket handshake.
+        .and(warp::ws())
+        .map( |ws: warp::ws::Ws| {
+            let recv = tx.subscribe();
+            ws.on_upgrade(move |socket| forward_broadcast(socket, recv));
+        }));
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
