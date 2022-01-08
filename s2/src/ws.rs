@@ -1,24 +1,21 @@
-use futures_util::{FutureExt, StreamExt};
+use futures_util::{StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, mpsc};
-use tokio_stream::wrappers::{BroadcastStream, UnboundedReceiverStream};
+use tokio::sync::{mpsc};
 use warp::ws::{Message, WebSocket};
+use std::collections::HashMap;
+use tokio_stream::wrappers::{UnboundedReceiverStream};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
     pub request_type: String,
 }
 
-pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
+pub async fn client_connection(ws: WebSocket, handler_map: &HashMap<String, fn(Message) -> Message>) {
     let (tx, mut rx) = ws.split();
     let (send_in, send_out) = mpsc::unbounded_channel();
     let send_out_stream = UnboundedReceiverStream::new(send_out);
 
-    tokio::task::spawn(send_out_stream.forward(tx).map(|result| {
-        if let Err(e) = result {
-            eprintln!("error sending websocket msg: {}", e);
-        }
-    }));
+    tokio::task::spawn(send_out_stream.forward(tx));
 
     while let Some(result) = rx.next().await {
         let msg = match result {
@@ -29,42 +26,31 @@ pub async fn client_connection(ws: WebSocket, handler: fn(Message) -> Message) {
             }
         };
 
-        let msg = handler(msg);
+        let response: Message;
+
+        match parse_request::<MyRequest>(&msg) {
+            Ok(req) => {
+                match handler_map.get(&req.request_type) {
+                    Some(handler) => {
+                        response = handler(msg);
+                    }
+                    None => {
+                        response = Message::text("Not a valid request type".to_string());
+                    }
+                }
+            },
+            Err(_e) => {
+                response = Message::text("Missing request type".to_string());
+            }
+        }
+        
         send_in
-            .send(Ok(msg))
+            .send(Ok(response))
             .map_err(|err| println!("{:?}", err))
             .ok();
     }
 
     println!("conn");
-}
-
-pub async fn forward_broadcast(
-    ws: WebSocket,
-    input: broadcast::Receiver<Result<Message, warp::Error>>,
-) {
-    let (tx, _) = ws.split();
-    // let (send_in, send_out) = mpsc::unbounded_channel();
-
-    let input_stream = BroadcastStream::new(input);
-    tokio::task::spawn(input_stream.forward(tx).map(|result| {
-        if let Err(e) = result {
-            eprintln!("error sending websocket msg: {}", e);
-        }
-    }));
-
-    // input.for_each(|msg| {
-    //     let msg = msg.unwrap();
-    //     send_in.send(msg).map_err(|err| println!("{:?}", err)).ok();
-    //     Ok(())
-    // }).await;
-
-    // let uin = BroadcastStream::new(input);
-    // tokio::task::spawn(uin.forward(tx).map(|result| {
-    //     if let Err(e) = result {
-    //         eprintln!("error sending websocket msg: {}", e);
-    //     }
-    // }));
 }
 
 pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, bool> {
