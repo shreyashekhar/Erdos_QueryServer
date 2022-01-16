@@ -1,25 +1,38 @@
 use futures_util::{StreamExt};
-use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc};
 use warp::ws::{Message, WebSocket};
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use tokio_stream::wrappers::{UnboundedReceiverStream};
+use std::sync::Mutex;
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
     pub request_type: String,
 }
 
-pub async fn client_connection(ws: WebSocket, handler_map: &HashMap<String, fn(Message) -> Message>) {
+pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, bool> {
+    let unparsed: Result<T, serde_json::Error> = serde_json::from_str(msg.to_str().unwrap());
+    let response: Result<T, bool> = match unparsed {
+        Ok(_) => Ok(unparsed.unwrap()),
+        Err(_) => Err(true),
+    };
+    response
+}
+
+pub async fn client_connection(ws: WebSocket, handler_map: &Mutex<HashMap<String, fn(Message) -> Message>>) {
     let (tx, mut rx) = ws.split();
     let (send_in, send_out) = mpsc::unbounded_channel();
-    let send_out_stream = UnboundedReceiverStream::new(send_out);
 
-    tokio::task::spawn(send_out_stream.forward(tx));
+    // let send_out_stream = UnboundedReceiverStream::new(send_out);
+    
+    tokio::task::spawn(send_out.forward(tx));
 
     while let Some(result) = rx.next().await {
         let msg = match result {
-            Ok(msg) => msg,
+            Ok(msg) => {
+		msg	
+	    },
             Err(_e) => {
                 eprintln!("error");
                 break;
@@ -30,7 +43,7 @@ pub async fn client_connection(ws: WebSocket, handler_map: &HashMap<String, fn(M
 
         match parse_request::<MyRequest>(&msg) {
             Ok(req) => {
-                match handler_map.get(&req.request_type) {
+                match &handler_map.lock().unwrap().get(&req.request_type) {
                     Some(handler) => {
                         response = handler(msg);
                     }
@@ -43,7 +56,7 @@ pub async fn client_connection(ws: WebSocket, handler_map: &HashMap<String, fn(M
                 response = Message::text("Missing request type".to_string());
             }
         }
-        
+
         send_in
             .send(Ok(response))
             .map_err(|err| println!("{:?}", err))
@@ -51,13 +64,4 @@ pub async fn client_connection(ws: WebSocket, handler_map: &HashMap<String, fn(M
     }
 
     println!("conn");
-}
-
-pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, bool> {
-    let unparsed: Result<T, serde_json::Error> = serde_json::from_str(msg.to_str().unwrap());
-    let response: Result<T, bool> = match unparsed {
-        Ok(_) => Ok(unparsed.unwrap()),
-        Err(_) => Err(true),
-    };
-    response
 }
