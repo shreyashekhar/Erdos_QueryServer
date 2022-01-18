@@ -1,9 +1,11 @@
+use futures::TryStreamExt;
 use futures_util::{StreamExt};
 use tokio::sync::{mpsc};
 use warp::ws::{Message, WebSocket};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::pin::Pin;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -24,14 +26,15 @@ pub async fn client_connection(ws: WebSocket, handler_map: &Mutex<HashMap<String
     let (tx, mut rx) = ws.split();
     let (send_in, send_out) = mpsc::unbounded_channel();
 
-    // let send_out_stream = UnboundedReceiverStream::new(send_out);
+    let mut rxp = Pin::new(&mut rx);
     
     tokio::task::spawn(send_out.forward(tx));
 
-    while let Some(result) = rx.next().await {
+    loop {
+        let result = rxp.try_next().await;
         let msg = match result {
             Ok(msg) => {
-		msg	
+		    msg.unwrap()
 	    },
             Err(_e) => {
                 eprintln!("error");
