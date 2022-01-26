@@ -1,6 +1,6 @@
 use futures::TryStreamExt;
 use futures_util::{StreamExt};
-use tokio::sync::{mpsc};
+use tokio::sync::{mpsc, broadcast};
 use warp::ws::{Message, WebSocket};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -21,6 +21,29 @@ pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, boo
     };
     response
 }
+
+
+
+pub async fn client_stream(ws: WebSocket, txp: &broadcast::Sender<Message>) {
+    println!("Connecting to stream...");
+    
+    let mut stream = &mut txp.subscribe();
+
+    let (tx, _) = ws.split();
+    let (send_in, send_out) = mpsc::unbounded_channel();
+
+    tokio::task::spawn(send_out.forward(tx));
+
+    loop {
+        println!("{}", stream.recv().await.ok().unwrap().to_str().ok().unwrap());
+
+        // send_in
+        //     .send(Ok(stream.recv().await.unwrap()))
+        //     .map_err(|err| println!("{:?}", err))
+        //     .ok();
+    }
+}
+
 
 pub async fn client_connection(ws: WebSocket, handler_map: &Mutex<HashMap<String, fn(Message) -> Message>>) {
     let (tx, mut rx) = ws.split();

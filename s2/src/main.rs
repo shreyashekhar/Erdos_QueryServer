@@ -4,10 +4,11 @@ extern crate lazy_static;
 use warp::Filter;
 use warp::ws::{Message};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
+use tokio::sync::{broadcast};
 
 mod ws;
-use ws::{parse_request, client_connection, MyRequest};
+use ws::{parse_request, client_connection, client_stream, MyRequest};
 
 
 pub fn handler_one(_msg: Message) -> Message  {
@@ -26,18 +27,38 @@ lazy_static! {
                 ("two".to_string(), handler_two as fn(Message) -> Message),
             ])
         );
+
+    static ref BROAD: (broadcast::Sender<Message>, broadcast::Receiver<Message>) =
+        broadcast::channel::<Message>(16);
 }
 
 #[tokio::main]
 async fn main() {
+    tokio::spawn(async move {
+        let txp = &BROAD.0;
+        loop {
+            txp.send(Message::text("stream message"));
+        }
+    });
+ 
     pretty_env_logger::init();
 
-    let routes = warp::path("echo")
+    let echo = warp::path("echo")
         .and(warp::ws())
         .map(|ws: warp::ws::Ws| {
             let handlers_p = & HANDLERS;
             ws.on_upgrade(move |socket| client_connection(socket, handlers_p))
         });
+
+    let stream = warp::path("stream")
+        .and(warp::ws())
+        .map(|ws: warp::ws::Ws| {
+            let txp = &BROAD.0;
+            ws.on_upgrade(move |socket| client_stream(socket, txp))
+        });
+
+
+    let routes = echo.or(stream);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
