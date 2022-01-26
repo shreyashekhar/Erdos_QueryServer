@@ -35,12 +35,15 @@ pub async fn client_stream(ws: WebSocket, txp: &broadcast::Sender<Message>) {
     tokio::task::spawn(send_out.forward(tx));
 
     loop {
-        println!("{}", stream.recv().await.ok().unwrap().to_str().ok().unwrap());
+        // println!("{}", stream.recv().await.ok().unwrap().to_str().ok().unwrap());
+        let msg = stream.recv().await.ok();
 
-        // send_in
-        //     .send(Ok(stream.recv().await.unwrap()))
-        //     .map_err(|err| println!("{:?}", err))
-        //     .ok();
+        if msg.is_some() {
+            send_in
+            .send(Ok(msg.unwrap()))
+            .map_err(|err| println!("{:?}", err))
+            .ok();
+        }
     }
 }
 

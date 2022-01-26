@@ -34,12 +34,14 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    tokio::spawn(async move {
+    tokio::task::spawn_blocking(|| {
         let txp = &BROAD.0;
         loop {
             txp.send(Message::text("stream message"));
         }
     });
+
+    println!("Started background stream...");
  
     pretty_env_logger::init();
 
