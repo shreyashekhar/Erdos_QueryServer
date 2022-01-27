@@ -1,12 +1,14 @@
-use futures::TryStreamExt;
-use futures_util::{StreamExt};
-use tokio::sync::{mpsc, broadcast};
-use warp::ws::{Message, WebSocket};
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::pin::Pin;
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
+use futures::TryStreamExt;
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{broadcast, mpsc};
+use warp::ws::{Message, WebSocket};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
@@ -22,11 +24,9 @@ pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, boo
     response
 }
 
-
-
-pub async fn client_stream(ws: WebSocket, txp: &broadcast::Sender<Message>) {
+pub async fn client_stream(ws: WebSocket, txp: broadcast::Sender<Message>) {
     println!("Connecting to stream...");
-    
+
     let mut stream = &mut txp.subscribe();
 
     let (tx, _) = ws.split();
@@ -40,28 +40,28 @@ pub async fn client_stream(ws: WebSocket, txp: &broadcast::Sender<Message>) {
 
         if msg.is_some() {
             send_in
-            .send(Ok(msg.unwrap()))
-            .map_err(|err| println!("{:?}", err))
-            .ok();
+                .send(Ok(msg.unwrap()))
+                .map_err(|err| println!("{:?}", err))
+                .ok();
         }
     }
 }
 
-
-pub async fn client_connection(ws: WebSocket, handler_map: &Mutex<HashMap<String, fn(Message) -> Message>>) {
+pub async fn client_connection(
+    ws: WebSocket,
+    handler_map: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>,
+) {
     let (tx, mut rx) = ws.split();
     let (send_in, send_out) = mpsc::unbounded_channel();
 
     let mut rxp = Pin::new(&mut rx);
-    
+
     tokio::task::spawn(send_out.forward(tx));
 
     loop {
         let result = rxp.try_next().await;
         let msg = match result {
-            Ok(msg) => {
-		    msg.unwrap()
-	    },
+            Ok(msg) => msg.unwrap(),
             Err(_e) => {
                 eprintln!("error");
                 break;
@@ -71,14 +71,12 @@ pub async fn client_connection(ws: WebSocket, handler_map: &Mutex<HashMap<String
         let response: Message;
 
         match parse_request::<MyRequest>(&msg) {
-            Ok(req) => {
-                match &handler_map.lock().unwrap().get(&req.request_type) {
-                    Some(handler) => {
-                        response = handler(msg);
-                    }
-                    None => {
-                        response = Message::text("Not a valid request type".to_string());
-                    }
+            Ok(req) => match handler_map.lock().unwrap().get(&req.request_type) {
+                Some(handler) => {
+                    response = handler(msg);
+                }
+                None => {
+                    response = Message::text("Not a valid request type".to_string());
                 }
             },
             Err(_e) => {
