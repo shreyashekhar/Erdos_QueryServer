@@ -10,6 +10,7 @@ use tokio::sync::{broadcast, mpsc};
 use warp::ws::{Message, WebSocket};
 use warp::{Error};
 
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
     pub request_type: String,
@@ -24,7 +25,10 @@ pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, boo
     response
 }
 
-pub async fn add_req_handlers(
+
+
+async fn add_req_handlers<U>(
+    state: Arc<Mutex<U>>,
     mut rx: SplitStream<WebSocket>,
     funnel: Arc<Mutex<mpsc::UnboundedSender<Result<Message, Error>>>>, 
     request_handlers: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>
@@ -66,7 +70,8 @@ pub async fn add_req_handlers(
     }
 }
 
-pub async fn add_data_stream(    
+async fn add_data_stream<U>(   
+    state: Arc<Mutex<U>>, 
     funnel: Arc<Mutex<mpsc::UnboundedSender<Result<Message, Error>>>>, 
     data_stream: broadcast::Sender<Message>
 ) {
@@ -88,35 +93,47 @@ pub async fn add_data_stream(
     }
 }
 
-pub async fn client_connection(
-    ws: WebSocket,
-    req_handlers: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>,
-    data_streams: Arc<Mutex<Vec<broadcast::Sender<Message>>>>
-) {
-    // split up the web socket
-    let (tx, rx) = ws.split();
-
-    // create an internal mpsc funnel to combine all streams and send to websocket
-    let (funnel_in, funnel_out) = mpsc::unbounded_channel();
-    let funnel_in = Arc::new(Mutex::new(funnel_in));
-
-    // forward all messages from the funnel to the output websocket
-    tokio::task::spawn(funnel_out.forward(tx));
-
-    // connect the request handlers
-    let request_handler_funnel = funnel_in.clone();
-    tokio::task::spawn(async {
-        add_req_handlers(rx, request_handler_funnel, req_handlers).await
-    });
-
-    // connect each data stream
-    let data_streams_g = data_streams.lock().unwrap();
-    for i in 0..data_streams_g.len() {
-        let stream_funnel = funnel_in.clone();
-        let data_stream = data_streams_g.get(i).unwrap().clone();
-
-        tokio::task::spawn(async move {
-            add_data_stream(stream_funnel, data_stream).await
-        });
-    }
+pub struct Router<U> {
+    state: Arc<Mutex<U>>
 }
+
+impl <U> Router<U> {
+    
+    async fn client_connection(
+        &self,
+        ws: WebSocket,
+        req_handlers: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>,
+        data_streams: Arc<Mutex<Vec<broadcast::Sender<Message>>>>
+    ) {
+        // split up the web socket
+        let (tx, rx) = ws.split();
+    
+        // create an internal mpsc funnel to combine all streams and send to websocket
+        let (funnel_in, funnel_out) = mpsc::unbounded_channel();
+        let funnel_in = Arc::new(Mutex::new(funnel_in));
+    
+        // forward all messages from the funnel to the output websocket
+        tokio::task::spawn(funnel_out.forward(tx));
+    
+        // connect the request handlers
+        let request_handler_funnel = funnel_in.clone();
+        let request_handler_state = self.state.clone();
+        tokio::task::spawn(async move {
+            add_req_handlers::<U>(request_handler_state, rx, request_handler_funnel, req_handlers).await
+        });
+    
+        // connect each data stream
+        let data_streams_g = data_streams.lock().unwrap();
+        for i in 0..data_streams_g.len() {
+            let stream_funnel = funnel_in.clone();
+            let stream_state = self.state.clone();
+            let data_stream = data_streams_g.get(i).unwrap().clone();
+    
+            tokio::task::spawn(async move {
+                add_data_stream::<U>(stream_state, stream_funnel, data_stream).await
+            });
+        }
+    }
+    
+}
+
