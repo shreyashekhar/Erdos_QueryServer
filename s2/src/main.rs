@@ -11,7 +11,7 @@ use tokio::sync::broadcast::{self, Sender};
 use warp::{ws::Message, Filter};
 
 mod ws;
-use ws::{client_connection, client_stream, parse_request, MyRequest};
+use ws::{client_connection};
 
 pub fn handler_one(_msg: Message) -> Message {
     Message::text("hello from handler 1!".to_string())
@@ -21,57 +21,54 @@ pub fn handler_two(_msg: Message) -> Message {
     Message::text("what's up from handler 2!".to_string())
 }
 
-lazy_static! {
-    static ref HANDLERS: Mutex<HashMap<String, fn(Message) -> Message>> =
-        Mutex::new(HashMap::from([
-            ("one".to_string(), handler_one as fn(Message) -> Message),
-            ("two".to_string(), handler_two as fn(Message) -> Message),
-        ]));
-}
-
-/// Sends messages at a fixed rate.
+/// Creates channel and sends messages accross it at a fixed rate.
 /// Drops messages if the channel fills up.
-async fn send_messages(tx: Sender<Message>, msgs_per_second: f32) {
-    let sleep_dur = Duration::from_secs_f32(1.0 / msgs_per_second);
+fn create_background_stream(stream_no: u8, rate: f32) -> Sender<Message> {
+    let (tx, _) = broadcast::channel(16);
+    let tx_copy = tx.clone();
 
-    loop {
-        tx.send(Message::text("stream message")).ok();
-        tokio::time::delay_for(sleep_dur).await;
-    }
+    // Send 2 messages / second from another green thread.
+    tokio::task::spawn(async move {
+        let sleep_dur = Duration::from_secs_f32(1.0 / rate);
+
+        loop {
+            tx_copy.send(Message::text(stream_no.to_string())).ok();
+            tokio::time::delay_for(sleep_dur).await;
+        }
+    });
+
+    tx
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel(16);
-
-    // Send 2 messages / second from another green thread.
-    tokio::task::spawn(send_messages(tx.clone(), 2.0));
-
-    println!("Started background stream...");
-
-    pretty_env_logger::init();
-
-    let msg_handlers = Arc::new(Mutex::new(HashMap::from([
+    // request handlers
+    let req_handlers = Arc::new(Mutex::new(HashMap::from([
         ("one".to_string(), handler_one as fn(Message) -> Message),
         ("two".to_string(), handler_two as fn(Message) -> Message),
     ])));
 
-    let echo = warp::path("echo")
-        .and(warp::ws())
-        .map(move |ws: warp::ws::Ws| {
-            // Creates a new reference to msg_handlers.
-            let msg_handlers_ref = msg_handlers.clone();
-            ws.on_upgrade(move |socket| client_connection(socket, msg_handlers_ref))
-        });
+    // data streams
+    let bg1 = create_background_stream(1, 2.0);
+    let bg2 = create_background_stream(2, 2.0);
+    
+    let data_streams: Arc<Mutex<Vec<Sender<Message>>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut data_streams_g = data_streams.lock().unwrap();
+    data_streams_g.push(bg1);
+    data_streams_g.push(bg2);
+    std::mem::drop(data_streams_g);
 
-    let stream = warp::path("stream")
-        .and(warp::ws())
-        .map(move |ws: warp::ws::Ws| {
-            let tx_copy = tx.clone();
-            ws.on_upgrade(move |socket| client_stream(socket, tx_copy))
-        });
 
-    let routes = echo.or(stream);
+    // create the endpoint
+    let routes = warp::path("dashboard")
+        .and(warp::ws())
+        .map( move |ws: warp::ws::Ws| {
+            // Make copies of request handlers and data streams
+            let req_handlers_copy = req_handlers.clone();
+            let data_streams_copy = data_streams.clone();
+
+            ws.on_upgrade(move |socket| client_connection(socket, req_handlers_copy, data_streams_copy))
+        });
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }

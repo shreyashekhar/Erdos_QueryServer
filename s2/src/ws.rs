@@ -1,14 +1,14 @@
 use std::{
     collections::HashMap,
-    pin::Pin,
     sync::{Arc, Mutex},
 };
 
-use futures::TryStreamExt;
+use futures::{TryStreamExt, stream::SplitStream};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc};
 use warp::ws::{Message, WebSocket};
+use warp::{Error};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyRequest {
@@ -24,42 +24,16 @@ pub fn parse_request<T: for<'a> Deserialize<'a>>(msg: &Message) -> Result<T, boo
     response
 }
 
-pub async fn client_stream(ws: WebSocket, txp: broadcast::Sender<Message>) {
-    println!("Connecting to stream...");
-
-    let mut stream = &mut txp.subscribe();
-
-    let (tx, _) = ws.split();
-    let (send_in, send_out) = mpsc::unbounded_channel();
-
-    tokio::task::spawn(send_out.forward(tx));
-
-    loop {
-        // println!("{}", stream.recv().await.ok().unwrap().to_str().ok().unwrap());
-        let msg = stream.recv().await.ok();
-
-        if msg.is_some() {
-            send_in
-                .send(Ok(msg.unwrap()))
-                .map_err(|err| println!("{:?}", err))
-                .ok();
-        }
-    }
-}
-
-pub async fn client_connection(
-    ws: WebSocket,
-    handler_map: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>,
+pub async fn add_req_handlers(
+    mut rx: SplitStream<WebSocket>,
+    funnel: Arc<Mutex<mpsc::UnboundedSender<Result<Message, Error>>>>, 
+    request_handlers: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>
 ) {
-    let (tx, mut rx) = ws.split();
-    let (send_in, send_out) = mpsc::unbounded_channel();
-
-    let mut rxp = Pin::new(&mut rx);
-
-    tokio::task::spawn(send_out.forward(tx));
-
     loop {
-        let result = rxp.try_next().await;
+        // get next request
+        let result = rx.try_next().await;
+
+        // unwrap the message
         let msg = match result {
             Ok(msg) => msg.unwrap(),
             Err(_e) => {
@@ -68,10 +42,10 @@ pub async fn client_connection(
             }
         };
 
+        // get the response
         let response: Message;
-
         match parse_request::<MyRequest>(&msg) {
-            Ok(req) => match handler_map.lock().unwrap().get(&req.request_type) {
+            Ok(req) => match request_handlers.lock().unwrap().get(&req.request_type) {
                 Some(handler) => {
                     response = handler(msg);
                 }
@@ -84,11 +58,65 @@ pub async fn client_connection(
             }
         }
 
-        send_in
-            .send(Ok(response))
+        // send response to the funnel
+        let mut funnel_g = funnel.lock().unwrap();
+        funnel_g.send(Ok(response))
             .map_err(|err| println!("{:?}", err))
             .ok();
     }
+}
 
-    println!("conn");
+pub async fn add_data_stream(    
+    funnel: Arc<Mutex<mpsc::UnboundedSender<Result<Message, Error>>>>, 
+    data_stream: broadcast::Sender<Message>
+) {
+    // subscribe to the data stream
+    let ds = &mut data_stream.subscribe();
+
+    loop {
+        // await a message
+        let msg = ds.recv().await.ok();
+
+        // if there is a message send it to the funnel
+        if msg.is_some() {
+            let funnel_g = funnel.lock().unwrap();
+            funnel_g
+                .send(Ok(msg.unwrap()))
+                .map_err(|err| println!("{:?}", err))
+                .ok();
+        }
+    }
+}
+
+pub async fn client_connection(
+    ws: WebSocket,
+    req_handlers: Arc<Mutex<HashMap<String, fn(Message) -> Message>>>,
+    data_streams: Arc<Mutex<Vec<broadcast::Sender<Message>>>>
+) {
+    // split up the web socket
+    let (tx, rx) = ws.split();
+
+    // create an internal mpsc funnel to combine all streams and send to websocket
+    let (funnel_in, funnel_out) = mpsc::unbounded_channel();
+    let funnel_in = Arc::new(Mutex::new(funnel_in));
+
+    // forward all messages from the funnel to the output websocket
+    tokio::task::spawn(funnel_out.forward(tx));
+
+    // connect the request handlers
+    let request_handler_funnel = funnel_in.clone();
+    tokio::task::spawn(async {
+        add_req_handlers(rx, request_handler_funnel, req_handlers).await
+    });
+
+    // connect each data stream
+    let data_streams_g = data_streams.lock().unwrap();
+    for i in 0..data_streams_g.len() {
+        let stream_funnel = funnel_in.clone();
+        let data_stream = data_streams_g.get(i).unwrap().clone();
+
+        tokio::task::spawn(async move {
+            add_data_stream(stream_funnel, data_stream).await
+        });
+    }
 }
